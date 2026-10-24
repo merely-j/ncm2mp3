@@ -1,0 +1,5 @@
+{
+  "main": "ncm2mp3.js",
+  "output": "sea-prep.blob",
+  "disableExperimentalSEAWarning": true
+}

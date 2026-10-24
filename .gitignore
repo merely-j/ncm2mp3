@@ -1,0 +1,18 @@
+# 构建产物 / 二进制（exe 通过 GitHub Release 分发，不进主干）
+ncm2mp3.exe
+sea-prep.blob
+
+# 用户私有文件：切勿提交任何 .ncm 或音频
+*.ncm
+*.mp3
+*.flac
+*.wav
+
+# 临时 / 测试
+_test*
+_testdir/
+_build/
+_exetest*
+node_modules/
+package.json
+package-lock.json

@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ncm 转 MP3 离线转换器</title>
+<style>
+  :root{ --bg:#f5f7fa; --card:#fff; --line:#e3e8ef; --txt:#1f2937; --sub:#6b7280; --acc:#2563eb; --acc2:#1d4ed8; --ok:#16a34a; --err:#dc2626; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:-apple-system,"Segoe UI","Microsoft YaHei",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--txt);line-height:1.6;padding:24px}
+  .wrap{max-width:760px;margin:0 auto}
+  h1{font-size:22px;margin:0 0 4px}
+  .hint{color:var(--sub);font-size:13px;margin:0 0 18px}
+  .hint b{color:var(--ok)}
+  #drop{border:2px dashed var(--line);border-radius:14px;background:var(--card);padding:34px 20px;text-align:center;cursor:pointer;transition:.15s}
+  #drop.hover{border-color:var(--acc);background:#eff6ff}
+  #drop .big{font-size:16px;margin-bottom:6px}
+  #drop .small{color:var(--sub);font-size:13px}
+  .btn{display:inline-block;background:var(--acc);color:#fff;border:none;border-radius:9px;padding:9px 16px;font-size:14px;cursor:pointer;margin-top:12px}
+  .btn:hover{background:var(--acc2)}
+  .btn.ghost{background:#fff;color:var(--acc);border:1px solid var(--acc)}
+  #list{margin-top:20px;display:flex;flex-direction:column;gap:10px}
+  .item{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px;display:flex;align-items:center;gap:12px}
+  .item .ic{width:38px;height:38px;border-radius:9px;background:#eef2ff;color:var(--acc);display:flex;align-items:center;justify-content:center;font-size:18px;flex:none}
+  .item .meta{flex:1;min-width:0}
+  .item .name{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .item .sub{font-size:12px;color:var(--sub)}
+  .item .st{font-size:12px;font-weight:600}
+  .st.ok{color:var(--ok)} .st.err{color:var(--err)} .st.run{color:var(--acc)}
+  .dl{text-decoration:none;color:var(--acc);font-size:13px;font-weight:600;white-space:nowrap}
+  .bar{height:5px;background:#eef2f7;border-radius:4px;margin-top:8px;overflow:hidden;display:none}
+  .bar > i{display:block;height:100%;width:0;background:var(--acc);transition:width .2s}
+  #actions{margin-top:14px;display:none}
+  footer{margin-top:26px;font-size:12px;color:var(--sub);text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>网易云 .ncm → MP3 离线转换器</h1>
+  <p class="hint">把 .ncm 文件拖进来（或点下面按钮选择），即可在<b>本机浏览器</b>解密并下载 MP3/FLAC。<br>文件不会上传到任何服务器，完全离线、隐私安全。</p>
+
+  <div id="drop">
+    <div class="big">📂 把 .ncm 文件拖到这里</div>
+    <div class="small">支持一次拖入多个文件 · 也可点击下方按钮选择</div>
+    <button class="btn" id="pick">选择文件</button>
+    <input type="file" id="file" accept=".ncm" multiple hidden>
+  </div>
+
+  <div id="list"></div>
+
+  <div id="actions">
+    <button class="btn ghost" id="dlAll">下载全部</button>
+    <button class="btn ghost" id="clear">清空列表</button>
+  </div>
+
+  <footer>本地离线解密 · 基于 ncmdump 逆向算法（AES-128-ECB + 定制 RC4）</footer>
+</div>
+
+<script>
+/* ============ 纯 JS 实现：AES-128-ECB 解密 ============ */
+const Sbox=[0x63,0x7c,0x77,0x7b,0xf2,0x6b,0x6f,0xc5,0x30,0x01,0x67,0x2b,0xfe,0xd7,0xab,0x76,0xca,0x82,0xc9,0x7d,0xfa,0x59,0x47,0xf0,0xad,0xd4,0xa2,0xaf,0x9c,0xa4,0x72,0xc0,0xb7,0xfd,0x93,0x26,0x36,0x3f,0xf7,0xcc,0x34,0xa5,0xe5,0xf1,0x71,0xd8,0x31,0x15,0x04,0xc7,0x23,0xc3,0x18,0x96,0x05,0x9a,0x07,0x12,0x80,0xe2,0xeb,0x27,0xb2,0x75,0x09,0x83,0x2c,0x1a,0x1b,0x6e,0x5a,0xa0,0x52,0x3b,0xd6,0xb3,0x29,0xe3,0x2f,0x84,0x53,0xd1,0x00,0xed,0x20,0xfc,0xb1,0x5b,0x6a,0xcb,0xbe,0x39,0x4a,0x4c,0x58,0xcf,0xd0,0xef,0xaa,0xfb,0x43,0x4d,0x33,0x85,0x45,0xf9,0x02,0x7f,0x50,0x3c,0x9f,0xa8,0x51,0xa3,0x40,0x8f,0x92,0x9d,0x38,0xf5,0xbc,0xb6,0xda,0x21,0x10,0xff,0xf3,0xd2,0xcd,0x0c,0x13,0xec,0x5f,0x97,0x44,0x17,0xc4,0xa7,0x7e,0x3d,0x64,0x5d,0x19,0x73,0x60,0x81,0x4f,0xdc,0x22,0x2a,0x90,0x88,0x46,0xee,0xb8,0x14,0xde,0x5e,0x0b,0xdb,0xe0,0x32,0x3a,0x0a,0x49,0x06,0x24,0x5c,0xc2,0xd3,0xac,0x62,0x91,0x95,0xe4,0x79,0xe7,0xc8,0x37,0x6d,0x8d,0xd5,0x4e,0xa9,0x6c,0x56,0xf4,0xea,0x65,0x7a,0xae,0x08,0xba,0x78,0x25,0x2e,0x1c,0xa6,0xb4,0xc6,0xe8,0xdd,0x74,0x1f,0x4b,0xbd,0x8b,0x8a,0x70,0x3e,0xb5,0x66,0x48,0x03,0xf6,0x0e,0x61,0x35,0x57,0xb9,0x86,0xc1,0x1d,0x9e,0xe1,0xf8,0x98,0x11,0x69,0xd9,0x8e,0x94,0x9b,0x1e,0x87,0xe9,0xce,0x55,0x28,0xdf,0x8c,0xa1,0x89,0x0d,0xbf,0xe6,0x42,0x68,0x41,0x99,0x2d,0x0f,0xb0,0x54,0xbb,0x16];
+const InvSbox=[0x52,0x09,0x6a,0xd5,0x30,0x36,0xa5,0x38,0xbf,0x40,0xa3,0x9e,0x81,0xf3,0xd7,0xfb,0x7c,0xe3,0x39,0x82,0x9b,0x2f,0xff,0x87,0x34,0x8e,0x43,0x44,0xc4,0xde,0xe9,0xcb,0x54,0x7b,0x94,0x32,0xa6,0xc2,0x23,0x3d,0xee,0x4c,0x95,0x0b,0x42,0xfa,0xc3,0x4e,0x08,0x2e,0xa1,0x66,0x28,0xd9,0x24,0xb2,0x76,0x5b,0xa2,0x49,0x6d,0x8b,0xd1,0x25,0x72,0xf8,0xf6,0x64,0x86,0x68,0x98,0x16,0xd4,0xa4,0x5c,0xcc,0x5d,0x65,0xb6,0x92,0x6c,0x70,0x48,0x50,0xfd,0xed,0xb9,0xda,0x5e,0x15,0x46,0x57,0xa7,0x8d,0x9d,0x84,0x90,0xd8,0xab,0x00,0x8c,0xbc,0xd3,0x0a,0xf7,0xe4,0x58,0x05,0xb8,0xb3,0x45,0x06,0xd0,0x2c,0x1e,0x8f,0xca,0x3f,0x0f,0x02,0xc1,0xaf,0xbd,0x03,0x01,0x13,0x8a,0x6b,0x3a,0x91,0x11,0x41,0x4f,0x67,0xdc,0xea,0x97,0xf2,0xcf,0xce,0xf0,0xb4,0xe6,0x73,0x96,0xac,0x74,0x22,0xe7,0xad,0x35,0x85,0xe2,0xf9,0x37,0xe8,0x1c,0x75,0xdf,0x6e,0x47,0xf1,0x1a,0x71,0x1d,0x29,0xc5,0x89,0x6f,0xb7,0x62,0x0e,0xaa,0x18,0xbe,0x1b,0xfc,0x56,0x3e,0x4b,0xc6,0xd2,0x79,0x20,0x9a,0xdb,0xc0,0xfe,0x78,0xcd,0x5a,0xf4,0x1f,0xdd,0xa8,0x33,0x88,0x07,0xc7,0x31,0xb1,0x12,0x10,0x59,0x27,0x80,0xec,0x5f,0x60,0x51,0x7f,0xa9,0x19,0xb5,0x4a,0x0d,0x2d,0xe5,0x7a,0x9f,0x93,0xc9,0x9c,0xef,0xa0,0xe0,0x3b,0x4d,0xae,0x2a,0xf5,0xb0,0xc8,0xeb,0xbb,0x3c,0x83,0x53,0x99,0x61,0x17,0x2b,0x04,0x7e,0xba,0x77,0xd6,0x26,0xe1,0x69,0x14,0x63,0x55,0x21,0x0c,0x7d];
+const Rcon=[0x01,0x02,0x04,0x08,0x10,0x20,0x40,0x80,0x1b,0x36];
+function gmul(a,b){let r=0;for(let i=0;i<8;i++){if(b&1)r^=a;const hi=a&0x80;a=(a<<1)&0xff;if(hi)a^=0x1b;b>>=1;}return r&0xff;}
+function invSubBytes(s){for(let i=0;i<16;i++)s[i]=InvSbox[s[i]];}
+function invShiftRows(s){const t=s.slice();for(let r=0;r<4;r++)for(let c=0;c<4;c++)s[r+4*((c+r)%4)]=t[r+4*c];}
+function invMixColumns(s){for(let c=0;c<4;c++){const i=c*4;const a0=s[i],a1=s[i+1],a2=s[i+2],a3=s[i+3];s[i]=gmul(a0,14)^gmul(a1,11)^gmul(a2,13)^gmul(a3,9);s[i+1]=gmul(a0,9)^gmul(a1,14)^gmul(a2,11)^gmul(a3,13);s[i+2]=gmul(a0,13)^gmul(a1,9)^gmul(a2,14)^gmul(a3,11);s[i+3]=gmul(a0,11)^gmul(a1,13)^gmul(a2,9)^gmul(a3,14);}}
+function keyExpansion(key){const w=new Array(44);for(let i=0;i<4;i++)w[i]=[key[4*i],key[4*i+1],key[4*i+2],key[4*i+3]];for(let i=4;i<44;i++){let t=w[i-1].slice();if(i%4===0){t=[t[1],t[2],t[3],t[0]];t=[Sbox[t[0]],Sbox[t[1]],Sbox[t[2]],Sbox[t[3]]];t[0]^=Rcon[i/4-1];}w[i]=[(w[i-4][0]^t[0])&0xff,(w[i-4][1]^t[1])&0xff,(w[i-4][2]^t[2])&0xff,(w[i-4][3]^t[3])&0xff];}const rk=[];for(let r=0;r<=10;r++){const k=new Uint8Array(16);for(let c=0;c<4;c++)for(let j=0;j<4;j++)k[c*4+j]=w[r*4+c][j];rk.push(k);}return rk;}
+function decryptBlock(inp,rk,out,off){const s=new Uint8Array(16);for(let i=0;i<16;i++)s[i]=inp[i];for(let i=0;i<16;i++)s[i]^=rk[10][i];for(let r=9;r>=1;r--){invShiftRows(s);invSubBytes(s);for(let i=0;i<16;i++)s[i]^=rk[r][i];invMixColumns(s);}invShiftRows(s);invSubBytes(s);for(let i=0;i<16;i++)s[i]^=rk[0][i];for(let i=0;i<16;i++)out[off+i]=s[i];}
+function aes128DecryptEcb(ct,key){const rk=keyExpansion(key);const out=new Uint8Array(ct.length);for(let off=0;off<ct.length;off+=16)decryptBlock(ct.subarray(off,off+16),rk,out,off);return out;}
+
+const CORE_KEY=new Uint8Array([0x68,0x7a,0x48,0x52,0x41,0x6d,0x73,0x6f,0x35,0x6b,0x49,0x6e,0x62,0x61,0x78,0x57]);
+
+/* ============ 定制 RC4 密钥流 ============ */
+function genKeystream(key){
+  let S=Array.from({length:256},(_,i)=>i);let j=0;
+  for(let i=0;i<256;i++){j=(j+S[i]+key[i%key.length])&0xFF;[S[i],S[j]]=[S[j],S[i]];}
+  const stream=new Uint8Array(256);
+  for(let i=0;i<256;i++)stream[i]=S[(S[i]+S[(i+S[i])&0xFF])&0xFF];
+  const rotated=new Uint8Array(256);rotated.set(stream.subarray(1));rotated[255]=stream[0];
+  const ks=new Uint8Array(16384);
+  for(let k=0;k<16384;k++)ks[k]=rotated[k%256];
+  return ks;
+}
+
+function readU32LE(d,off){return (d[off]&0xff)|((d[off+1]&0xff)<<8)|((d[off+2]&0xff)<<16)|((d[off+3]&0xff)<<24);}
+
+function detectExt(a){
+  if(a[0]===0x66&&a[1]===0x4c&&a[2]===0x61&&a[3]===0x43)return 'flac';
+  if(a[0]===0x49&&a[1]===0x44&&a[2]===0x33)return 'mp3';
+  if(a[0]===0xFF&&(a[1]&0xE0)===0xE0)return 'mp3';
+  return null;
+}
+
+function convertNCM(buf){
+  const data=new Uint8Array(buf);
+  if(!(data[0]===0x43&&data[1]===0x54&&data[2]===0x45&&data[3]===0x4e))
+    throw new Error('不是有效的 .ncm 文件（缺少 CTEN 文件头）');
+  let pos=8;pos+=2;
+  let keyLen=readU32LE(data,pos);pos+=4;
+  let keyData=data.subarray(pos,pos+keyLen);pos+=keyLen;
+  let metaLen=readU32LE(data,pos);pos+=4;pos+=metaLen;
+  pos+=5;
+  let imageSpace=readU32LE(data,pos);pos+=4;
+  let imageSize=readU32LE(data,pos);pos+=4;
+  pos+=imageSize;pos+=(imageSpace-imageSize);
+  let audioEnc=data.subarray(pos);
+
+  const xored=new Uint8Array(keyData.length);
+  for(let i=0;i<keyData.length;i++)xored[i]=keyData[i]^0x64;
+  const dec=aes128DecryptEcb(xored,CORE_KEY);
+  const pad=dec[dec.length-1];
+  const decU=dec.subarray(0,dec.length-pad);
+  const keyData2=decU.subarray(17);
+
+  const ks=genKeystream(keyData2);
+  const audio=new Uint8Array(audioEnc.length);
+  for(let k=0;k<audioEnc.length;k++)audio[k]=audioEnc[k]^ks[k%ks.length];
+
+  const ext=detectExt(audio);
+  if(!ext)throw new Error('解密后无法识别格式（可能是更新/变体 .ncm）');
+
+  return {audio,ext};
+}
+
+/* ============ GUI 交互 ============ */
+const drop=document.getElementById('drop');
+const fileInput=document.getElementById('file');
+const list=document.getElementById('list');
+const actions=document.getElementById('actions');
+const results=[]; // {name, blobUrl, outName, ok}
+
+document.getElementById('pick').addEventListener('click',e=>{e.stopPropagation();fileInput.click();});
+drop.addEventListener('click',()=>fileInput.click());
+fileInput.addEventListener('change',e=>{addFiles(e.target.files);fileInput.value='';});
+
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('hover');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('hover');}));
+drop.addEventListener('drop',e=>{if(e.dataTransfer&&e.dataTransfer.files)addFiles(e.dataTransfer.files);});
+
+function fmtSize(b){return b>1048576?(b/1048576).toFixed(2)+' MB':(b/1024).toFixed(0)+' KB';}
+
+function addFiles(fileList){
+  const files=[...fileList].filter(f=>f.name.toLowerCase().endsWith('.ncm'));
+  if(!files.length)return;
+  actions.style.display='flex';
+  files.forEach(file=>queue(file));
+}
+
+const queueList=[];
+function queue(file){queueList.push(file);pump();}
+
+let pumping=false;
+async function pump(){
+  if(pumping)return;pumping=true;
+  while(queueList.length){
+    const file=queueList.shift();
+    await processOne(file);
+  }
+  pumping=false;
+}
+
+async function processOne(file){
+  const item=document.createElement('div');
+  item.className='item';
+  item.innerHTML=`<div class="ic">🎵</div>
+    <div class="meta">
+      <div class="name">${file.name}</div>
+      <div class="sub">${fmtSize(file.size)} · <span class="st run">处理中…</span></div>
+      <div class="bar"><i></i></div>
+    </div>`;
+  list.appendChild(item);
+  const bar=item.querySelector('.bar');bar.style.display='block';
+  const st=item.querySelector('.st');
+  // 让 UI 有机会渲染
+  await new Promise(r=>setTimeout(r,30));
+  try{
+    const buf=await file.arrayBuffer();
+    bar.querySelector('i').style.width='60%';
+    const {audio,ext}=convertNCM(buf);
+    const base=(file.name.replace(/\.ncm$/i,'')||'output');
+    const outName=base+'.'+ext;
+    const blob=new Blob([audio],{type:ext==='mp3'?'audio/mpeg':'audio/flac'});
+    const url=URL.createObjectURL(blob);
+    results.push({outName,url});
+    st.className='st ok';st.textContent='完成 · '+ext.toUpperCase();
+    bar.querySelector('i').style.width='100%';
+    setTimeout(()=>bar.style.display='none',400);
+    const a=document.createElement('a');
+    a.className='dl';a.href=url;a.download=outName;a.textContent='⬇ 下载';
+    item.appendChild(a);
+    item.querySelector('.sub').innerHTML=outName+' · <span class="st ok">完成</span>';
+  }catch(err){
+    st.className='st err';st.textContent='失败';
+    item.querySelector('.sub').innerHTML='<span class="st err">'+err.message+'</span>';
+  }
+}
+
+document.getElementById('dlAll').addEventListener('click',()=>{
+  results.forEach(r=>{const a=document.createElement('a');a.href=r.url;a.download=r.outName;document.body.appendChild(a);a.click();a.remove();});
+});
+document.getElementById('clear').addEventListener('click',()=>{
+  results.forEach(r=>URL.revokeObjectURL(r.url));
+  results.length=0;list.innerHTML='';actions.style.display='none';
+});
+</script>
+</body>
+</html>
