@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ncm2mp3 · 在线转换</title>
+<meta http-equiv="refresh" content="0; url=ncm2mp3_gui.html">
+<style>
+  body{font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+       display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;
+       background:#f6f7f9;color:#2b2f36}
+  .box{text-align:center;padding:32px 40px;background:#fff;border:1px solid #e5e7eb;
+       border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.06)}
+  a{color:#2563eb;text-decoration:none}
+  a:hover{text-decoration:underline}
+  .spin{width:22px;height:22px;margin:0 auto 14px;border:3px solid #e5e7eb;
+        border-top-color:#2563eb;border-radius:50%;animation:r .8s linear infinite}
+  @keyframes r{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="spin"></div>
+    <p>正在进入 <b>ncm2mp3</b> 转换工具…</p>
+    <p style="font-size:14px;color:#6b7280">若未自动跳转，请 <a href="ncm2mp3_gui.html">点此进入</a></p>
+  </div>
+  <script>location.replace('ncm2mp3_gui.html');</script>
+</body>
+</html>
